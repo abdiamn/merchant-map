@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merchant Location Mapping</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- SheetJS (xlsx) for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--light);
+            color: var(--dark);
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-info {
+            background: #0284c7;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #0369a1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            height: calc(100vh - 120px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: border 0.3s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--light);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        .merchant-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .merchant-card {
+            background: var(--light);
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .merchant-card:hover {
+            transform: translateX(4px);
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .merchant-card.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .merchant-name {
+            font-weight: 600;
+            font-size: 1.05rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .merchant-info {
+            font-size: 0.85rem;
+            color: #64748b;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .merchant-card.active .merchant-info {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .merchant-category {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: white;
+            color: var(--primary);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .merchant-card.active .merchant-category {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* Map Container */
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 500;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .control-btn {
+            background: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-cancel {
+            background: #e2e8f0;
+            color: var(--dark);
+        }
+
+        .btn-cancel:hover {
+            background: #cbd5e1;
+        }
+
+        /* Custom Leaflet Popup */
+        .custom-popup .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .popup-content {
+            padding: 0.5rem;
+            min-width: 200px;
+        }
+
+        .popup-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .popup-info {
+            font-size: 0.9rem;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .popup-category {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .popup-actions {
+            margin-top: 0.75rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .btn-route {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 0.4rem 0.7rem;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-route:hover {
+            background: #1d4ed8;
+            color: white;
+        }
+
+        .btn-route-secondary {
+            background: #0f766e;
+        }
+
+        .btn-route-secondary:hover {
+            background: #115e59;
+        }
+
+        .card-actions {
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .sidebar {
+                max-height: 400px;
+            }
+
+            .map-container {
+                height: 500px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">🗺️ Merchant Location Mapping</div>
+            <div class="header-actions">
+                <button class="btn btn-info" onclick="openMultiRoute()">
+                    🚗 Rute Multi-Merchant (GMaps)
+                </button>
+                <button class="btn btn-warning" onclick="openImportModal()">
+                    📥 Import Excel
+                </button>
+                <button class="btn btn-success" onclick="openAddModal()">
+                    ➕ Tambah Merchant
+                </button>
+                <button class="btn btn-primary" onclick="resetView()">
+                    🔄 Reset View
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <input 
+                type="text" 
+                class="search-box" 
+                placeholder="🔍 Cari merchant..."
+                onkeyup="filterMerchants(this.value)"
+            />
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalMerchants">0</div>
+                    <div class="stat-label">Total Merchant</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="visibleMerchants">0</div>
+                    <div class="stat-label">Terlihat</div>
+                </div>
+            </div>
+
+            <div class="merchant-list" id="merchantList">
+                <!-- Merchant cards will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="map-container">
+            <div class="map-controls">
+                <button class="control-btn" onclick="exportKML()">📍 Export MyMaps (KML)</button>
+                <button class="control-btn" onclick="downloadTemplate()">📄 Template Excel</button>
+                <button class="control-btn" onclick="showAllMerchants()">📍 Tampilkan Semua</button>
+                <button class="control-btn" onclick="exportExcel()">📊 Export Excel</button>
+                <button class="control-btn" onclick="exportData()">💾 Export JSON</button>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Import Excel Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">📥 Import Data Merchant dari Excel</div>
+            
+            <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem;">
+                Upload file <strong>.xlsx</strong>, <strong>.xls</strong>, atau <strong>.csv</strong>. 
+                Kolom yang didukung (case-insensitive):
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Nama</code>, 
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Kategori</code>, 
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Alamat</code>, 
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Latitude / Lat</code>, 
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Longitude / Lng</code>, 
+                <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">Telepon / Phone</code>.
+            </p>
+
+            <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-primary" style="font-size: 0.85rem;" onclick="downloadTemplate()">
+                    📄 Download Template Excel
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mode Import</label>
+                <select class="form-select" id="importMode">
+                    <option value="append">Tambahkan ke data yang sudah ada (Append)</option>
+                    <option value="replace">Ganti seluruh data yang ada (Replace)</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="background:#eff6ff; padding:0.75rem; border-radius:8px; border:1px solid #bfdbfe;">
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:600; color:#1e40af;">
+                    <input type="checkbox" id="autoGeocodeMissing" checked />
+                    Auto-Cari Koordinat di Makassar jika Lat/Lng Kosong
+                </label>
+                <div style="font-size:0.75rem; color:#3b82f6; margin-top:0.25rem;">
+                    Jika baris Excel tidak memiliki Latitude/Longitude, sistem akan otomatis mencari lokasi di Kota Makassar berdasarkan Nama atau Alamat merchant.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Pilih File Excel / CSV *</label>
+                <input type="file" class="form-input" id="excelFileInput" accept=".xlsx, .xls, .csv" onchange="previewExcelFile(event)" />
+            </div>
+
+            <!-- Preview Container -->
+            <div id="importPreviewContainer" style="display: none; margin-bottom: 1rem;">
+                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem;" id="previewSummary">Preview: 0 baris</div>
+                <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem;">
+                    <table style="width: 100%; border-collapse: collapse;" id="previewTable"></table>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-cancel" onclick="closeImportModal()">Batal</button>
+                <button type="button" class="btn btn-warning" id="btnProcessImport" onclick="processImport()" disabled>
+                    Import Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Merchant Modal -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">Tambah Merchant Baru</div>
+            <form onsubmit="addMerchant(event)">
+                <div class="form-group">
+                    <label class="form-label">Nama Merchant *</label>
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="text" class="form-input" id="merchantName" required placeholder="Contoh: RM Nelayan Makassar" />
+                        <button type="button" class="btn btn-primary" style="white-space:nowrap; font-size:0.85rem;" onclick="lookupCoordinatesByName()">
+                            🔍 Cari Titik
+                        </button>
+                    </div>
+                    <small style="color:#64748b; font-size:0.75rem;">Klik tombol "Cari Titik" untuk mencari koordinat otomatis di area Makassar berdasarkan nama.</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Kategori *</label>
+                    <select class="form-select" id="merchantCategory" required>
+                        <option value="">Pilih kategori...</option>
+                        <option value="Restoran">Restoran</option>
+                        <option value="Cafe">Cafe</option>
+                        <option value="Toko">Toko</option>
+                        <option value="Supermarket">Supermarket</option>
+                        <option value="Bank">Bank</option>
+                        <option value="SPBU">SPBU</option>
+                        <option value="Apotek">Apotek</option>
+                        <option value="Hotel">Hotel</option>
+                        <option value="Lainnya">Lainnya</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Alamat *</label>
+                    <input type="text" class="form-input" id="merchantAddress" required />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Latitude *</label>
+                    <input type="number" step="any" class="form-input" id="merchantLat" required />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Longitude *</label>
+                    <input type="number" step="any" class="form-input" id="merchantLng" required />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Telepon</label>
+                    <input type="tel" class="form-input" id="merchantPhone" />
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal()">Batal</button>
+                    <button type="submit" class="btn btn-success">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Sample merchant data (Makassar locations)
+        let merchants = [
+            {
+                id: 1,
+                name: "Pantai Losari",
+                category: "Lainnya",
+                address: "Jl. Penghibur, Losari, Ujung Pandang, Kota Makassar",
+                lat: -5.1443,
+                lng: 119.4081,
+                phone: ""
+            },
+            {
+                id: 2,
+                name: "Mall Panakkukang",
+                category: "Supermarket",
+                address: "Jl. Boulevard No. 1, Masale, Panakkukang, Kota Makassar",
+                lat: -5.1578,
+                lng: 119.4467,
+                phone: "0411-452100"
+            },
+            {
+                id: 3,
+                name: "Coto Nusantara",
+                category: "Restoran",
+                address: "Jl. Nusantara No. 360, Wajo, Kota Makassar",
+                lat: -5.1242,
+                lng: 119.4090,
+                phone: "0411-3617789"
+            },
+            {
+                id: 4,
+                name: "Trans Studio Mall Makassar",
+                category: "Supermarket",
+                address: "Jl. Metro Tj. Bunga, Tamalate, Kota Makassar",
+                lat: -5.1597,
+                lng: 119.3942,
+                phone: "0411-8117100"
+            },
+            {
+                id: 5,
+                name: "Bank BRI Kantor Wilayah Makassar",
+                category: "Bank",
+                address: "Jl. Ahmad Yani No. 8, Pattunuang, Wajo, Kota Makassar",
+                lat: -5.1328,
+                lng: 119.4089,
+                phone: "0411-3652000"
+            },
+            {
+                id: 6,
+                name: "Pallubasa Serigala",
+                category: "Restoran",
+                address: "Jl. Serigala No. 54, Mamajang Dalam, Kota Makassar",
+                lat: -5.1582,
+                lng: 119.4189,
+                phone: "08124118888"
+            },
+            {
+                id: 7,
+                name: "Nipah Park Makassar",
+                category: "Supermarket",
+                address: "Jl. Urip Sumoharjo No. 23C, Panaikang, Panakkukang, Kota Makassar",
+                lat: -5.1384,
+                lng: 119.4516,
+                phone: "0411-3663377"
+            },
+            {
+                id: 8,
+                name: "Konro Karebosi",
+                category: "Restoran",
+                address: "Jl. Gunung Lompobattang No. 41, Pisang Utara, Ujung Pandang, Makassar",
+                lat: -5.1347,
+                lng: 119.4137,
+                phone: "0411-3612154"
+            }
+        ];
+
+        let map;
+        let markers = [];
+        let activeMarkerId = null;
+
+        // Initialize map
+        function initMap() {
+            // Center on Makassar
+            map = L.map('map').setView([-5.1477, 119.4327], 13);
+
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add all merchants to map
+            renderMerchants();
+            updateStats();
+        }
+
+        // Render merchants on map and list
+        function renderMerchants() {
+            // Clear existing markers
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
+            // Render list
+            const listContainer = document.getElementById('merchantList');
+            listContainer.innerHTML = '';
+
+            merchants.forEach(merchant => {
+                // Add marker to map
+                const marker = L.marker([merchant.lat, merchant.lng])
+                    .addTo(map)
+                    .bindPopup(createPopupContent(merchant), {
+                        className: 'custom-popup',
+                        maxWidth: 300
+                    });
+
+                marker.merchantId = merchant.id;
+                
+                marker.on('click', function() {
+                    setActiveMerchant(merchant.id);
+                });
+
+                markers.push(marker);
+
+                // Add to list
+                const card = document.createElement('div');
+                card.className = 'merchant-card';
+                card.id = `merchant-${merchant.id}`;
+                const gmapsDirUrl = `https://www.google.com/maps/dir/?api=1&destination=${merchant.lat},${merchant.lng}`;
+                const gmapsPinUrl = `https://www.google.com/maps/search/?api=1&query=${merchant.lat},${merchant.lng}`;
+
+                card.innerHTML = `
+                    <div class="merchant-name">${merchant.name}</div>
+                    <div class="merchant-info">
+                        <span>📍 ${merchant.address}</span>
+                        ${merchant.phone ? `<span>📞 ${merchant.phone}</span>` : ''}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem;">
+                        <span class="merchant-category">${merchant.category}</span>
+                        <div class="card-actions" onclick="event.stopPropagation()">
+                            <a href="${gmapsDirUrl}" target="_blank" class="btn-route" title="Navigasi ke lokasi ini">
+                                🚗 Rute
+                            </a>
+                            <a href="${gmapsPinUrl}" target="_blank" class="btn-route btn-route-secondary" title="Buka pin di Google Maps">
+                                📍 Pin
+                            </a>
+                        </div>
+                    </div>
+                `;
+                
+                card.onclick = () => {
+                    setActiveMerchant(merchant.id);
+                    map.setView([merchant.lat, merchant.lng], 15);
+                    marker.openPopup();
+                };
+
+                listContainer.appendChild(card);
+            });
+        }
+
+        // Create popup content
+        function createPopupContent(merchant) {
+            const gmapsDirUrl = `https://www.google.com/maps/dir/?api=1&destination=${merchant.lat},${merchant.lng}`;
+            const gmapsPinUrl = `https://www.google.com/maps/search/?api=1&query=${merchant.lat},${merchant.lng}`;
+
+            return `
+                <div class="popup-content">
+                    <div class="popup-title">${merchant.name}</div>
+                    <div class="popup-info">
+                        📍 ${merchant.address}<br>
+                        ${merchant.phone ? `📞 ${merchant.phone}<br>` : ''}
+                        📊 Lat: ${merchant.lat.toFixed(4)}, Lng: ${merchant.lng.toFixed(4)}
+                    </div>
+                    <span class="popup-category">${merchant.category}</span>
+                    <div class="popup-actions">
+                        <a href="${gmapsDirUrl}" target="_blank" class="btn-route">
+                            🚗 Navigasi Rute (GMaps)
+                        </a>
+                        <a href="${gmapsPinUrl}" target="_blank" class="btn-route btn-route-secondary">
+                            📍 Lihat di Google Maps
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Set active merchant
+        function setActiveMerchant(id) {
+            // Remove previous active
+            if (activeMarkerId) {
+                const prevCard = document.getElementById(`merchant-${activeMarkerId}`);
+                if (prevCard) prevCard.classList.remove('active');
+            }
+
+            // Set new active
+            activeMarkerId = id;
+            const card = document.getElementById(`merchant-${id}`);
+            if (card) {
+                card.classList.add('active');
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Filter merchants
+        function filterMerchants(query) {
+            const lowerQuery = query.toLowerCase();
+            let visibleCount = 0;
+
+            merchants.forEach((merchant, index) => {
+                const matchName = merchant.name.toLowerCase().includes(lowerQuery);
+                const matchCategory = merchant.category.toLowerCase().includes(lowerQuery);
+                const matchAddress = merchant.address.toLowerCase().includes(lowerQuery);
+                const isVisible = matchName || matchCategory || matchAddress;
+
+                const card = document.getElementById(`merchant-${merchant.id}`);
+                const marker = markers[index];
+
+                if (isVisible) {
+                    card.style.display = 'block';
+                    marker.addTo(map);
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                    marker.remove();
+                }
+            });
+
+            document.getElementById('visibleMerchants').textContent = visibleCount;
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('totalMerchants').textContent = merchants.length;
+            document.getElementById('visibleMerchants').textContent = merchants.length;
+        }
+
+        // Show all merchants
+        function showAllMerchants() {
+            if (merchants.length === 0) return;
+
+            const bounds = L.latLngBounds(merchants.map(m => [m.lat, m.lng]));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        // Reset view
+        function resetView() {
+            map.setView([-5.1477, 119.4327], 13);
+            activeMarkerId = null;
+            document.querySelectorAll('.merchant-card').forEach(card => {
+                card.classList.remove('active');
+            });
+        }
+
+        // Single merchant coordinate lookup by name (Makassar area)
+        async function lookupCoordinatesByName() {
+            const nameInput = document.getElementById('merchantName').value.trim();
+            const addressInput = document.getElementById('merchantAddress').value.trim();
+            const query = (addressInput || nameInput);
+
+            if (!query) {
+                alert('Silakan masukkan Nama atau Alamat merchant terlebih dahulu.');
+                return;
+            }
+
+            const searchBtn = event.target;
+            const originalText = searchBtn.innerText;
+            searchBtn.innerText = '⏳ Mencari...';
+            searchBtn.disabled = true;
+
+            try {
+                const coord = await geocodeMakassar(nameInput, addressInput);
+                if (coord) {
+                    document.getElementById('merchantLat').value = coord.lat;
+                    document.getElementById('merchantLng').value = coord.lng;
+                    if (!addressInput && coord.display_name) {
+                        document.getElementById('merchantAddress').value = coord.display_name;
+                    }
+                    alert(`✅ Lokasi ditemukan di Makassar!\nLatitude: ${coord.lat}\nLongitude: ${coord.lng}`);
+                } else {
+                    alert(`⚠️ Lokasi "${query}" tidak ditemukan di area Makassar. Silakan masukkan koordinat secara manual.`);
+                }
+            } catch (err) {
+                alert('Gagal mencari lokasi: ' + err.message);
+            } finally {
+                searchBtn.innerText = originalText;
+                searchBtn.disabled = false;
+            }
+        }
+
+        // Geocoding helper bounded to Makassar
+        async function geocodeMakassar(name, address = '') {
+            // Priority queries:
+            // 1. "Name Makassar"
+            // 2. "Address Makassar"
+            const queries = [];
+            if (name) queries.push(`${name}, Makassar`);
+            if (address) queries.push(`${address}, Makassar`);
+            if (name && address) queries.push(`${name} ${address}, Makassar`);
+
+            for (let q of queries) {
+                try {
+                    // Makassar Bounding box: south=-5.30, north=-5.00, west=119.35, east=119.55
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&viewbox=119.35,-5.00,119.55,-5.30&bounded=0&limit=1`;
+                    const res = await fetch(url, {
+                        headers: {
+                            'Accept-Language': 'id,en'
+                        }
+                    });
+                    const results = await res.json();
+                    if (results && results.length > 0) {
+                        return {
+                            lat: parseFloat(results[0].lat),
+                            lng: parseFloat(results[0].lon),
+                            display_name: results[0].display_name
+                        };
+                    }
+                } catch (e) {
+                    console.warn('Geocoding error for query:', q, e);
+                }
+                // Rate limit politeness
+                await new Promise(r => setTimeout(r, 600));
+            }
+            return null;
+        }
+
+        // Modal functions
+        function openAddModal() {
+            document.getElementById('addModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('addModal').classList.remove('active');
+            document.getElementById('merchantName').value = '';
+            document.getElementById('merchantCategory').value = '';
+            document.getElementById('merchantAddress').value = '';
+            document.getElementById('merchantLat').value = '';
+            document.getElementById('merchantLng').value = '';
+            document.getElementById('merchantPhone').value = '';
+        }
+
+        // Add merchant
+        function addMerchant(event) {
+            event.preventDefault();
+
+            const newMerchant = {
+                id: Date.now(),
+                name: document.getElementById('merchantName').value,
+                category: document.getElementById('merchantCategory').value,
+                address: document.getElementById('merchantAddress').value,
+                lat: parseFloat(document.getElementById('merchantLat').value),
+                lng: parseFloat(document.getElementById('merchantLng').value),
+                phone: document.getElementById('merchantPhone').value
+            };
+
+            merchants.push(newMerchant);
+            renderMerchants();
+            updateStats();
+            closeModal();
+
+            // Zoom to new merchant
+            map.setView([newMerchant.lat, newMerchant.lng], 15);
+            setActiveMerchant(newMerchant.id);
+
+            alert('✅ Merchant berhasil ditambahkan!');
+        }
+
+        // Export data
+        function exportData() {
+            const dataStr = JSON.stringify(merchants, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `merchants_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('addModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Import Excel Functions
+        let parsedImportData = [];
+
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+            document.getElementById('excelFileInput').value = '';
+            document.getElementById('importPreviewContainer').style.display = 'none';
+            document.getElementById('btnProcessImport').disabled = true;
+            parsedImportData = [];
+        }
+
+        document.getElementById('importModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeImportModal();
+            }
+        });
+
+        function previewExcelFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    if (rows.length === 0) {
+                        alert('⚠️ File Excel kosong!');
+                        return;
+                    }
+
+                    parsedImportData = rows.map((row, index) => {
+                        const getVal = (...keys) => {
+                            for (let k of Object.keys(row)) {
+                                if (keys.some(expected => expected.toLowerCase() === k.trim().toLowerCase())) {
+                                    return row[k];
+                                }
+                            }
+                            return '';
+                        };
+
+                        const latRaw = getVal('Latitude', 'Lat', 'latitude', 'lat');
+                        const lngRaw = getVal('Longitude', 'Lng', 'Long', 'longitude', 'lng', 'long');
+                        const lat = parseFloat(String(latRaw).replace(',', '.'));
+                        const lng = parseFloat(String(lngRaw).replace(',', '.'));
+
+                        return {
+                            id: Date.now() + index,
+                            name: String(getVal('Nama', 'Name', 'Nama Merchant', 'Merchant', 'Merchant Name') || `Merchant ${index + 1}`).trim(),
+                            category: String(getVal('Kategori', 'Category', 'Tipe', 'Jenis') || 'Lainnya').trim(),
+                            address: String(getVal('Alamat', 'Address', 'Lokasi') || '-').trim(),
+                            lat: isNaN(lat) ? null : lat,
+                            lng: isNaN(lng) ? null : lng,
+                            phone: String(getVal('Telepon', 'Phone', 'Telp', 'No Telp', 'No HP', 'Kontak') || '').trim()
+                        };
+                    });
+
+                    // Render Preview Table
+                    const validCount = parsedImportData.filter(m => m.lat !== null && m.lng !== null).length;
+                    const missingCount = parsedImportData.length - validCount;
+                    const previewContainer = document.getElementById('importPreviewContainer');
+                    const summary = document.getElementById('previewSummary');
+                    const table = document.getElementById('previewTable');
+
+                    let statusText = `Terdeteksi <strong>${parsedImportData.length}</strong> baris (${validCount} baris memiliki koordinat, ${missingCount} kosong)`;
+                    if (missingCount > 0) {
+                        statusText += `<br><span style="color:#2563eb; font-weight:normal; font-size:0.8rem;">💡 Baris yang koordinatnya kosong akan otomatis dicari lokasinya di Kota Makassar saat diimport.</span>`;
+                    }
+                    summary.innerHTML = statusText;
+                    
+                    let tableHtml = `
+                        <tr style="background:#f8fafc; font-weight:600; text-align:left; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:6px;">Nama</th>
+                            <th style="padding:6px;">Kategori</th>
+                            <th style="padding:6px;">Alamat</th>
+                            <th style="padding:6px;">Lat</th>
+                            <th style="padding:6px;">Lng</th>
+                            <th style="padding:6px;">Status</th>
+                        </tr>
+                    `;
+
+                    parsedImportData.slice(0, 5).forEach(m => {
+                        const isValid = m.lat !== null && m.lng !== null;
+                        tableHtml += `
+                            <tr style="border-bottom:1px solid #f1f5f9; ${isValid ? '' : 'background:#fef3c7;'}">
+                                <td style="padding:6px;">${m.name}</td>
+                                <td style="padding:6px;">${m.category}</td>
+                                <td style="padding:6px;">${m.address}</td>
+                                <td style="padding:6px;">${m.lat ?? '-'}</td>
+                                <td style="padding:6px;">${m.lng ?? '-'}</td>
+                                <td style="padding:6px; font-weight:600; font-size:0.75rem; color:${isValid ? '#10b981' : '#d97706'};">
+                                    ${isValid ? '✅ Siap' : '🔍 Auto-Cari'}
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    if (parsedImportData.length > 5) {
+                        tableHtml += `<tr><td colspan="6" style="padding:6px; text-align:center; color:#64748b;">... dan ${parsedImportData.length - 5} baris lainnya</td></tr>`;
+                    }
+
+                    table.innerHTML = tableHtml;
+                    previewContainer.style.display = 'block';
+
+                    // Enable button if there is any data (missing coords can be auto-geocoded)
+                    document.getElementById('btnProcessImport').disabled = false;
+                } catch (err) {
+                    console.error(err);
+                    alert('Gagal membaca file Excel: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function processImport() {
+            const btn = document.getElementById('btnProcessImport');
+            const originalText = btn.innerText;
+            const autoGeocode = document.getElementById('autoGeocodeMissing').checked;
+
+            btn.disabled = true;
+            btn.innerText = '⏳ Memproses & Mencari Titik...';
+
+            let finalData = [];
+            let foundCount = 0;
+            let failedCount = 0;
+
+            for (let i = 0; i < parsedImportData.length; i++) {
+                let m = parsedImportData[i];
+
+                if (m.lat === null || m.lng === null) {
+                    if (autoGeocode) {
+                        btn.innerText = `⏳ Mencari (${i + 1}/${parsedImportData.length}): ${m.name}...`;
+                        const coord = await geocodeMakassar(m.name, m.address);
+                        if (coord) {
+                            m.lat = coord.lat;
+                            m.lng = coord.lng;
+                            foundCount++;
+                            finalData.push(m);
+                        } else {
+                            failedCount++;
+                        }
+                    } else {
+                        failedCount++;
+                    }
+                } else {
+                    finalData.push(m);
+                }
+            }
+
+            btn.disabled = false;
+            btn.innerText = originalText;
+
+            if (finalData.length === 0) {
+                alert('⚠️ Tidak ada data yang berhasil memiliki titik koordinat.');
+                return;
+            }
+
+            const mode = document.getElementById('importMode').value;
+            if (mode === 'replace') {
+                merchants = finalData;
+            } else {
+                merchants = merchants.concat(finalData);
+            }
+
+            renderMerchants();
+            updateStats();
+            showAllMerchants();
+            closeImportModal();
+
+            let msg = `✅ Berhasil mengimpor ${finalData.length} merchant ke peta!`;
+            if (foundCount > 0) {
+                msg += `\n📍 ${foundCount} lokasi berhasil dicari otomatis di area Makassar.`;
+            }
+            if (failedCount > 0) {
+                msg += `\n⚠️ ${failedCount} merchant dilewati karena nama/alamatnya tidak ditemukan koordinatnya di Makassar.`;
+            }
+            alert(msg);
+        }
+
+        function downloadTemplate() {
+            const templateData = [
+                {
+                    "Nama": "Coto Nusantara",
+                    "Kategori": "Restoran",
+                    "Alamat": "Jl. Nusantara, Makassar",
+                    "Latitude": "",
+                    "Longitude": "",
+                    "Telepon": "0411-3617789"
+                },
+                {
+                    "Nama": "Mall Ratu Indah",
+                    "Kategori": "Supermarket",
+                    "Alamat": "Jl. Dr. Sam Ratulangi No. 35, Makassar",
+                    "Latitude": "",
+                    "Longitude": "",
+                    "Telepon": "0411-852222"
+                },
+                {
+                    "Nama": "Pantai Losari",
+                    "Kategori": "Lainnya",
+                    "Alamat": "Jl. Penghibur, Makassar",
+                    "Latitude": -5.1443,
+                    "Longitude": 119.4081,
+                    "Telepon": ""
+                }
+            ];
+
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Merchants");
+            XLSX.writeFile(wb, "template_merchant_makassar.xlsx");
+        }
+
+        function exportExcel() {
+            const exportData = merchants.map(m => ({
+                "Nama": m.name,
+                "Kategori": m.category,
+                "Alamat": m.address,
+                "Latitude": m.lat,
+                "Longitude": m.lng,
+                "Telepon": m.phone || ''
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Merchants");
+            XLSX.writeFile(wb, `merchants_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        // Multi-merchant Route Generator (Google Maps Waypoints)
+        function openMultiRoute() {
+            if (merchants.length === 0) {
+                alert('Belum ada merchant di peta!');
+                return;
+            }
+
+            // Google Maps URL format:
+            // https://www.google.com/maps/dir/?api=1&origin=...&destination=...&waypoints=lat,lng|lat,lng
+            const origin = `${merchants[0].lat},${merchants[0].lng}`;
+            const destination = `${merchants[merchants.length - 1].lat},${merchants[merchants.length - 1].lng}`;
+            
+            // Limit waypoints to 9 (Google Maps URL limit)
+            const waypointsList = merchants.slice(1, merchants.length - 1).slice(0, 8);
+            const waypoints = waypointsList.map(m => `${m.lat},${m.lng}`).join('|');
+
+            let url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+            if (merchants.length > 1) {
+                url += `&origin=${origin}`;
+            }
+            if (waypoints) {
+                url += `&waypoints=${encodeURIComponent(waypoints)}`;
+            }
+
+            window.open(url, '_blank');
+        }
+
+        // Export KML for Google My Maps
+        function exportKML() {
+            if (merchants.length === 0) {
+                alert('Belum ada merchant untuk diexport!');
+                return;
+            }
+
+            let placemarks = merchants.map(m => `
+    <Placemark>
+      <name><![CDATA[${m.name}]]></name>
+      <description><![CDATA[Kategori: ${m.category}\nAlamat: ${m.address}\nTelepon: ${m.phone || '-'}]]></description>
+      <Point>
+        <coordinates>${m.lng},${m.lat},0</coordinates>
+      </Point>
+    </Placemark>`).join('');
+
+            const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Merchant Locations</name>
+    <description>Exported from Merchant Mapping App</description>
+${placemarks}
+  </Document>
+</kml>`;
+
+            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `merchants_mymaps_${new Date().toISOString().split('T')[0]}.kml`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert('✅ File KML berhasil diunduh!\n\nCara pakai di Google My Maps:\n1. Buka mymaps.google.com\n2. Buat Peta Baru (Create a new map)\n3. Klik "Import" pada layer\n4. Pilih file KML yang baru diunduh tadi.');
+        }
+
+        // Initialize on page load
+        window.onload = initMap;
+    </script>
+</body>
+</html>
